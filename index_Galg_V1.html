@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Radlers Galgenmännchen</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{color-scheme:light;--b:#1e6fd9;--t:#14b8c4;--g:#16a34a;--r:#dc2626}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:linear-gradient(#eaf6ff,#fff);color:#12315a;text-align:center}
+h1{margin:0;padding:14px;background:linear-gradient(90deg,var(--b),var(--t));color:#fff;font-size:1.3rem}
+.c{max-width:480px;margin:12px auto;padding:12px}
+button,select,input{font:inherit;padding:10px 14px;border-radius:10px;border:2px solid var(--t);background:#fff;color:#12315a}
+button{background:var(--b);color:#fff;border:0;cursor:pointer}button.o{background:#fff;color:var(--b);border:2px solid var(--b)}button.s{background:var(--t)}
+.pl{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:10px 0}.pl span{background:#fff;border:2px solid var(--t);border-radius:20px;padding:4px 12px}
+.pl i{color:var(--r);cursor:pointer;font-style:normal;margin-left:6px}
+.res{border-radius:12px;padding:10px;margin:10px 0;color:#fff;background:var(--b)}.res.w{background:var(--g)}.res.l{background:var(--r)}
+#kb{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin:10px 0}#kb button{padding:10px 0}
+#kb button.h{background:var(--g)}#kb button.m{background:var(--r)}#kb button:disabled{opacity:.45}
+#mk{font-size:2rem;letter-spacing:3px;font-family:monospace;min-height:2.6rem}
+.fg{animation:fg .8s}.fr{animation:fr .8s}
+@keyframes fg{0%,50%{color:var(--g);text-shadow:0 0 10px var(--g)}}@keyframes fr{0%,50%{color:var(--r);text-shadow:0 0 10px var(--r)}}
+#gal{width:190px;height:220px}#gal .p{fill:none;stroke:#12315a;stroke-width:4;stroke-linecap:round;stroke-dasharray:1}
+#gal .d{animation:dr .5s forwards}@keyframes dr{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+#ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#fffd;z-index:9}
+#ov.on{display:flex}#ov b{font-size:6rem;color:var(--b)}#ov .bx{background:#fff;border:2px solid var(--t);border-radius:14px;padding:16px}
+</style></head><body>
+<h1>Radlers Galgenmännchen</h1>
+<div class="c" id="nm"><p>Wie heißt du?</p><input id="ni" maxlength="14" placeholder="Name"> <button onclick="go0()">Los</button></div>
+<div class="c" id="qw" hidden><div id="qr" style="display:inline-block"></div><p><small>QR-Code scannen zum Beitreten</small></p></div>
+<div class="c" id="lob" hidden></div>
+<div class="c" id="gm" hidden>
+<svg id="gal" viewBox="0 0 120 140"><path class="p" pathLength="1" d="M10 130H70"/><path class="p" pathLength="1" d="M30 130V10"/><path class="p" pathLength="1" d="M30 10H85"/><path class="p" pathLength="1" d="M30 32L52 10"/><path class="p" pathLength="1" d="M85 10V28"/><circle class="p" pathLength="1" cx="85" cy="38" r="10"/><path class="p" pathLength="1" d="M85 48V85"/><path class="p" pathLength="1" d="M85 58L70 74"/><path class="p" pathLength="1" d="M85 58L100 74"/><path class="p" pathLength="1" d="M85 85L72 110"/><path class="p" pathLength="1" d="M85 85L98 110"/></svg>
+<div id="mk"></div><div id="st"></div><div id="kb"></div><button id="wb" class="o" onclick="ow()">Wort raten</button></div>
+<div id="ov"></div>
+<script>
+const $=i=>document.getElementById(i),E=s=>String(s).replace(/[&<>"]/g,c=>'&#'+c.charCodeAt(0)+';');
+const clean=s=>s.toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss').replace(/[^a-z]/g,'');
+// Dateiname der Wortliste (liegt im selben Ordner wie index.html, ein Wort pro Zeile)
+const WORTDATEI='wörterliste.txt';
+let LIST=['haus','baum','fahrrad','schule','garten'];
+fetch(encodeURI(WORTDATEI)).then(r=>r.ok?r.text():Promise.reject()).then(t=>{
+ const l=t.replace(/^\uFEFF/,'').split(/[\s,;]+/).filter(s=>/^[a-zäöüß]+$/i.test(s)).map(clean).filter(w=>w.length>=4&&w.length<=14);
+ if(l.length)LIST=l}).catch(()=>console.warn('Wortliste nicht gefunden, Notliste aktiv'));
+let peer,room,host=false,hc,V=null,mid='',myName='',qd=0,shown=0,pe=0,pu=0,tries=0;
+const P={},G={};
+// ---------- Host ----------
+function newG(){Object.assign(G,{ph:'lobby',mode:'a',max:8,gv:'rand',served:[],word:'',gid:null,sh:{u:{},e:0,d:null},fin:[],res:null,ord:[]})}
+function startHost(r,n){room=r;peer=new Peer('hm-'+r);
+ peer.on('open',()=>{host=true;mid='H';newG();for(const k in P)delete P[k];P.H={n:myName,w:0};bc()});
+ peer.on('connection',c=>{c.on('data',d=>hd(c,d));c.on('close',()=>drop(c.peer))});
+ peer.on('error',e=>{if(e.type=='unavailable-id'&&n<20)setTimeout(()=>{peer.destroy();startHost(n?r:rc(),n+1)},n?1500:0)})}
+const rc=()=>Math.random().toString(36).slice(2,6);
+function hd(c,d){if(d.t=='hi'){const n=String(d.n||'').trim().slice(0,14);
+  if(!n||Object.values(P).some(p=>p.n.toLowerCase()==n.toLowerCase())){c.send({t:'dup'});return}
+  P[c.peer]={n,c,w:G.ph!='lobby'?1:0};bc()}else act(c.peer,d)}
+function act(id,d){const p=P[id];if(!p)return;const H=id=='H';
+ if(d.t=='cfg'&&H&&G.ph=='lobby'){G.mode=d.mode;G.max=Math.min(11,Math.max(6,d.max|0));G.gv=d.gv}
+ else if(d.t=='go'&&H&&G.ph=='lobby')go();
+ else if(d.t=='kick'&&H&&d.id!='H')drop(d.id,1);
+ else if(d.t=='word'&&G.ph=='word'&&id==G.gid){const w=clean(String(d.w));if(w.length>1){G.word=w;cnt()}}
+ else if(G.ph=='play'&&!p.w)guess(id,d);
+ bc()}
+function go(){Object.values(P).forEach(p=>p.w=0);const ids=Object.keys(P);G.res=null;
+ if(G.mode=='a'){if(ids.length<2)return;let g=G.gv;
+  if(!P[g]||g=='rand'){let c=ids.filter(i=>!G.served.includes(i));if(!c.length){G.served=[];c=ids}g=c[Math.random()*c.length|0]}
+  G.served.push(g);G.gid=g;G.ph='word';G.word=''}
+ else{G.word=LIST[Math.random()*LIST.length|0];G.gid=null;cnt()}}
+function cnt(){G.sh={u:{},e:0,d:null};G.fin=[];Object.values(P).forEach(p=>{p.u={};p.e=0;p.d=null});G.ph='count';bc();
+ setTimeout(()=>{if(G.ph=='count'){G.ph='play';bc()}},3300)}
+function guess(id,d){const sh=G.mode!='c',g=sh?G.sh:P[id];if(g.d||(G.mode=='a'&&id==G.gid))return;const u=g.u;
+ if(d.t=='l'){const c=d.c;if(!/^[a-z]$/.test(c)||u[c])return;if(G.word.includes(c))u[c]=1;else{u[c]=2;g.e++}
+  if([...G.word].every(x=>u[x]==1))fin(id,g,'w');else if(g.e>=G.max)fin(id,g,'l')}
+ else if(d.t=='w'){const w=clean(String(d.w));if(!w)return;if(w==G.word)fin(id,g,'w');else{g.e++;if(g.e>=G.max)fin(id,g,'l')}}}
+function fin(id,g,r){g.d=r;if(G.mode!='c')end(r);else{G.fin.push(id);if(Object.values(P).every(p=>p.w||p.d))end()}}
+function end(r){G.ph='lobby';G.res={w:G.word,m:G.mode,r:G.mode=='c'?G.fin.filter(i=>P[i]).map(i=>[P[i].n,P[i].d]):r}}
+function drop(id,k){const p=P[id];if(!p)return;if(k&&p.c)p.c.close();delete P[id];
+ if(G.mode=='a'&&id==G.gid&&G.ph!='lobby'){G.ph='lobby';G.res=null}
+ else if(G.ph=='play'&&G.mode=='c'&&Object.values(P).every(q=>q.w||q.d))end();bc()}
+function view(id){const p=P[id],sh=G.mode!='c',g=sh?G.sh:p,lb=G.ph=='lobby'||G.ph=='word';
+ return{t:'v',room,me:id,ph:G.ph,mode:G.mode,max:G.max,gv:G.gv,w:p.w,ord:G.ord,u:g.u||{},e:g.e||0,d:g.d||null,gid:G.gid,
+  gn:G.gid&&P[G.gid]?P[G.gid].n:'',r:G.res,
+  ns:Object.entries(P).map(([i,q])=>({i,n:q.n,w:q.w,d:(G.mode=='c'&&q.d)?1:0})),
+  m:lb?'':[...G.word].map(c=>((g.u||{})[c]==1||id==G.gid)?c:'_').join(' ')}}
+function bc(){G.ord=G.ord.filter(i=>P[i]&&i!='H');Object.keys(P).forEach(i=>{if(i!='H'&&!G.ord.includes(i))G.ord.splice(Math.random()*(G.ord.length+1)|0,0,i)});
+ Object.entries(P).forEach(([i,q])=>{try{q.c&&q.c.send(view(i))}catch(e){}});r(view('H'))}
+// ---------- Client ----------
+function join(rm){room=rm;peer=new Peer();peer.on('open',id=>{mid=id;con()});
+ peer.on('error',e=>{if(!host){if(V||tries<2)lost();else{tries++;alert('Raum nicht gefunden');}}})}
+function con(){if(host)return;hc=peer.connect('hm-'+room,{reliable:true});
+ hc.on('open',()=>{tries=0;hc.send({t:'hi',n:myName})});
+ hc.on('data',d=>{if(d.t=='dup'){alert('Name schon vergeben');location.reload()}else r(d)});hc.on('close',lost)}
+function lost(){if(host||++tries>30)return;
+ if(V&&V.ord&&V.ord[0]==mid&&tries==1){peer.destroy();setTimeout(()=>startHost(room,1),1500);return}
+ setTimeout(()=>{if(!host&&(!hc||!hc.open)){try{con()}catch(e){}}},1500)}
+const send=d=>host?act('H',d):hc&&hc.open&&hc.send(d);
+function go0(){myName=$('ni').value.trim();if(!myName)return;const q=new URLSearchParams(location.search).get('r');
+ $('nm').hidden=1;q?join(q):startHost(rc(),0)}
+// ---------- UI ----------
+const kb=$('kb');for(const c of 'abcdefghijklmnopqrstuvwxyz'){const b=document.createElement('button');b.textContent=c.toUpperCase();b.id='k'+c;b.onclick=()=>L(c);kb.appendChild(b)}
+function L(c){const v=V;if(v&&v.ph=='play'&&!v.d&&!v.w&&!(v.mode=='a'&&v.gid==v.me)&&!v.u[c])send({t:'l',c})}
+onkeydown=e=>{if(document.activeElement.tagName!='INPUT'&&/^[a-z]$/i.test(e.key))L(e.key.toLowerCase())};
+function cfg(o){send({t:'cfg',mode:V.mode,max:V.max,gv:V.gv,...o})}
+function cd(){const o=$('ov');o.className='on';let n=3;const f=()=>{if(n<1){o.className='';o.innerHTML='';return}o.innerHTML='<b>'+n+'</b>';n--;setTimeout(f,1000)};f()}
+function ow(){$('ov').className='on';$('ov').innerHTML='<div class="bx"><input id="wi" maxlength="30" placeholder="Wort"><br><br><button onclick="sw()">Raten</button> <button class="o" onclick="$(\'ov\').className=\'\'">Abbrechen</button></div>';$('wi').focus()}
+function sw(){const w=$('wi').value;$('ov').className='';if(w)send({t:'w',w})}
+function sg(){const w=clean($('gw').value);if(w.length>1)send({t:'word',w})}
+function resH(v){const x=v.r;if(!x)return'';let h='<div class="res '+(x.m=='c'?'':x.r)+'">Das Wort war: <b>'+E(x.w)+'</b><br>';
+ h+=x.m=='c'?x.r.map((a,i)=>(i+1)+'. '+E(a[0])+(a[1]=='w'?' ✓':' ✗')).join('<br>'):(x.r=='w'?'Gelöst! 🎉':'Verloren');return h+'</div>'}
+function r(v){const pv=V;V=v;const H=v.me==(host?'H':v.me)&&host;
+ if(!qd){qd=1;new QRCode($('qr'),{text:location.origin+location.pathname+'?r='+v.room,width:150,height:150})}
+ const play=v.ph=='play'||v.ph=='count';$('qw').hidden=v.ph!='lobby';$('lob').hidden=play;$('gm').hidden=!play;
+ if(v.ph=='count'&&(!pv||pv.ph!='count')){cd();shown=0;pe=0;pu=0;$('mk').className=''}
+ if(play){const giver=v.mode=='a'&&v.gid==v.me,vis=Math.ceil(v.e*11/v.max),nu=Object.keys(v.u).length;
+  [...$('gal').children].forEach((el,i)=>{el.style.display=i<vis?'':'none';if(i>=shown&&i<vis){el.classList.remove('d');void el.getBoundingClientRect();el.classList.add('d')}});shown=vis;
+  $('mk').textContent=v.m;
+  if(v.e>pe){fl('fr');navigator.vibrate&&navigator.vibrate(200)}else if(nu>pu){fl('fg');navigator.vibrate&&navigator.vibrate(60)}
+  pe=v.e;pu=nu;
+  for(const c of 'abcdefghijklmnopqrstuvwxyz'){const b=$('k'+c);b.className=v.u[c]==1?'h':v.u[c]==2?'m':'';b.disabled=!!v.u[c]||!!v.d||giver||!!v.w||v.ph!='play'}
+  $('wb').hidden=giver||!!v.d||!!v.w;
+  const fd=v.ns.filter(n=>n.d).map(n=>E(n.n));
+  $('st').innerHTML=(giver?'Du bist Wortgeber – schau zu!<br>':'')+(v.w?'Warteliste – nächste Runde bist du dabei<br>':'')+(v.d?'<div class="res '+v.d+'">'+(v.d=='w'?'Gelöst ✓':'Verloren ✗')+' – warte auf die anderen</div>':'')+
+   (v.mode=='c'&&fd.length?'Fertig: '+fd.join(', ')+'<br>':'')+'Fehler: '+v.e+' / '+v.max}
+ else lobH(v)}
+function fl(c){const m=$('mk');m.className='';void m.offsetWidth;m.className=c}
+function lobH(v){const hs=host;let h=resH(v);
+ if(v.ph=='word'){h+=v.gid==v.me?'<p>Du bist Wortgeber! Gib ein Wort ein:</p><input id="gw" oninput="$(\'pv\').textContent=clean(this.value)" maxlength="30"><p id="pv"></p><button onclick="sg()">Wort festlegen</button>':'<p>'+E(v.gn)+' gibt ein Wort ein …</p>';$('lob').innerHTML=h;return}
+ h+='<h3>Spieler</h3><div class="pl">'+v.ns.map(n=>'<span>'+E(n.n)+(n.w?' ⏳':'')+(hs&&n.i!='H'?'<i onclick="send({t:\'kick\',id:\''+n.i+'\'})">✕</i>':'')+'</span>').join('')+'</div>';
+ if(v.w)h+='<p>⏳ Warteliste – du steigst in der nächsten Runde ein.</p>';
+ if(hs){h+='<p>';for(const [m,t] of [['a','A: Wortgeber'],['b','B: Gemeinsam'],['c','C: Wettlauf']])h+='<button class="'+(v.mode==m?'':'o')+'" onclick="cfg({mode:\''+m+'\'})">'+t+'</button> ';h+='</p>';
+  h+='<p>Fehlversuche: <select onchange="cfg({max:+this.value})">'+[6,7,8,9,10,11].map(n=>'<option'+(n==v.max?' selected':'')+'>'+n+'</option>').join('')+'</select></p>';
+  if(v.mode=='a')h+='<p>Wortgeber: <select onchange="cfg({gv:this.value})"><option value="rand">zufällig</option>'+v.ns.map(n=>'<option value="'+n.i+'"'+(v.gv==n.i?' selected':'')+'>'+E(n.n)+'</option>').join('')+'</select></p>';
+  h+='<button class="s" onclick="send({t:\'go\'})">Runde starten</button>'}
+ else h+='<p>Warte auf den Moderator …</p><p><small>Modus: '+{a:'A Wortgeber',b:'B Gemeinsam',c:'C Wettlauf'}[v.mode]+' · '+v.max+' Fehlversuche</small></p>';
+ $('lob').innerHTML=h}
+</script></body></html>
